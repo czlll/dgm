@@ -146,3 +146,94 @@ def remove_patch_by_files(patch_str, keyword='polyglot'):
             filtered_lines.append(line)
 
     return "\n".join(filtered_lines)
+
+
+def is_patch_empty_or_test_only(patch_str, test_keywords=None):
+    """
+    Check if a patch is empty or only modifies test files.
+    
+    Args:
+        patch_str (str): The patch content
+        test_keywords (list): Keywords to identify test files (default: common test patterns)
+    
+    Returns:
+        tuple: (is_empty, is_test_only, modified_files)
+    """
+    if test_keywords is None:
+        test_keywords = ['test_', '_test', 'tests/', '/test/', 'test.py', 'conftest.py', 'pytest', 'unittest']
+    
+    # Check if patch is empty
+    if not patch_str or not patch_str.strip():
+        return True, False, []
+    
+    # Extract modified files from patch
+    modified_files = []
+    lines = patch_str.splitlines()
+    
+    for line in lines:
+        if line.startswith("diff --git"):
+            # Extract file paths from diff header
+            # Format: diff --git a/path/to/file b/path/to/file
+            parts = line.split()
+            if len(parts) >= 4:
+                file_a = parts[2][2:]  # Remove 'a/' prefix
+                file_b = parts[3][2:]  # Remove 'b/' prefix
+                # Use the 'b/' file path (destination) as it represents the current state
+                modified_files.append(file_b)
+    
+    if not modified_files:
+        return True, False, []
+    
+    # Check if all modified files are test files
+    source_files = []
+    test_files = []
+    
+    for file_path in modified_files:
+        is_test_file = any(keyword in file_path.lower() for keyword in test_keywords)
+        if is_test_file:
+            test_files.append(file_path)
+        else:
+            source_files.append(file_path)
+    
+    is_test_only = len(source_files) == 0 and len(test_files) > 0
+    
+    return False, is_test_only, modified_files
+
+
+def get_patch_summary(patch_str):
+    """
+    Get a summary of what files are modified in a patch.
+    
+    Args:
+        patch_str (str): The patch content
+    
+    Returns:
+        str: A human-readable summary of the patch
+    """
+    is_empty, is_test_only, modified_files = is_patch_empty_or_test_only(patch_str)
+    
+    if is_empty:
+        return "Empty patch - no files modified"
+    
+    if is_test_only:
+        return f"Test-only patch - modified {len(modified_files)} test file(s): {', '.join(modified_files)}"
+    
+    # Count source vs test files
+    test_keywords = ['test_', '_test', 'tests/', '/test/', 'test.py', 'conftest.py', 'pytest', 'unittest']
+    source_files = []
+    test_files = []
+    
+    for file_path in modified_files:
+        is_test_file = any(keyword in file_path.lower() for keyword in test_keywords)
+        if is_test_file:
+            test_files.append(file_path)
+        else:
+            source_files.append(file_path)
+    
+    summary_parts = []
+    if source_files:
+        summary_parts.append(f"{len(source_files)} source file(s): {', '.join(source_files)}")
+    if test_files:
+        summary_parts.append(f"{len(test_files)} test file(s): {', '.join(test_files)}")
+    
+    return f"Patch modifies {len(modified_files)} file(s) - " + "; ".join(summary_parts)

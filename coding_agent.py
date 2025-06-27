@@ -76,6 +76,7 @@ class AgenticSystem:
             instance_id=None,
             max_attempts=3,
             max_patch_retries=2,
+            model=None,
         ):
         self.problem_statement = problem_statement
         self.git_tempdir = git_tempdir
@@ -84,7 +85,7 @@ class AgenticSystem:
         self.test_description = test_description
         self.self_improve = self_improve
         self.instance_id = instance_id if not self_improve else 'dgm'
-        self.code_model = CLAUDE_MODEL
+        self.code_model = model if model else OPENAI_MODEL  # Default to OpenAI if no model specified
         self.max_attempts = max_attempts
         self.max_patch_retries = max_patch_retries
 
@@ -413,6 +414,7 @@ def main():
     parser.add_argument('--instance_id', default=None, help='Instance ID for SWE issue')
     parser.add_argument('--max_attempts', type=int, default=3, help='Maximum number of solution attempts')
     parser.add_argument('--max_patch_retries', type=int, default=2, help='Maximum number of patch generation retries per attempt')
+    parser.add_argument('--model', default=None, help='Model to use (default: OpenAI o3-mini)')
     args = parser.parse_args()
 
     # Process the repository
@@ -426,6 +428,7 @@ def main():
         instance_id=args.instance_id,
         max_attempts=args.max_attempts,
         max_patch_retries=args.max_patch_retries,
+        model=args.model,
     )
 
     # Run the agentic system to try to solve the problem

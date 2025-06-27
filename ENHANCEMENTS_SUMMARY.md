@@ -99,6 +99,7 @@ This document summarizes all the enhancements implemented to improve the coding 
 ### 6.1 New Parameters
 - `--max_attempts`: Configure number of solution attempts
 - `--max_patch_retries`: Configure patch generation retries
+- `--model`: Specify which model to use (defaults to OpenAI o3-mini)
 - **Backward Compatibility**: All new parameters have sensible defaults
 
 ## 7. Comprehensive Testing

@@ -131,6 +131,12 @@ def get_response_withtools(
                 logging("Context limit exceeded and no retries left")
                 raise ValueError("Input too long for model and summarization failed")
         
+        # Handle AWS credentials issues
+        if 'could not resolve credentials' in error_str or 'credentials' in error_str.lower():
+            logging("AWS credentials issue detected. Consider using OpenAI models instead.")
+            logging("See AWS_CREDENTIALS_SETUP.md for configuration instructions.")
+            raise ValueError(f"AWS credentials error: {error_str}. Try using --model o3-mini-2025-01-31 instead.")
+        
         if max_retry > 0:
             return get_response_withtools(client, model, messages, tools, tool_choice, logging, max_retry - 1)
 

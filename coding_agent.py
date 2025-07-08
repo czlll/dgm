@@ -12,6 +12,7 @@ from utils.git_utils import diff_versus_commit, reset_to_commit, apply_patch, is
 
 # Thread-local storage for logger instances
 thread_local = threading.local()
+code_agent_model = 'o3-mini'
 
 def get_thread_logger():
     """
@@ -84,7 +85,7 @@ class AgenticSystem:
         self.test_description = test_description
         self.self_improve = self_improve
         self.instance_id = instance_id if not self_improve else 'dgm'
-        self.code_model = CLAUDE_MODEL
+        self.code_model = code_agent_model if code_agent_model else CLAUDE_MODEL
         self.max_attempts = max_attempts
         self.max_patch_retries = max_patch_retries
 

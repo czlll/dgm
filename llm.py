@@ -6,6 +6,7 @@ import re
 import anthropic
 import backoff
 import openai
+from openai import AzureOpenAI
 
 MAX_OUTPUT_TOKENS = 4096
 AVAILABLE_LLMS = [
@@ -65,9 +66,17 @@ def create_client(model: str):
         client_model = model.split("/")[-1]
         print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
+    # elif 'gpt' in model or model.startswith("o1-") or model.startswith("o3-"):
+    #     print(f"Using OpenAI API with model {model}.")
+    #     return openai.OpenAI(), model
     elif 'gpt' in model or model.startswith("o1-") or model.startswith("o3-"):
         print(f"Using OpenAI API with model {model}.")
-        return openai.OpenAI(), model
+        client = AzureOpenAI(
+        azure_endpoint="https://acl2024.openai.azure.com/",
+        api_key="4a8432ec66a847fd8b6db969ed519087",
+        api_version="2025-03-01-preview",
+    )
+        return client, model
     elif model.startswith("deepseek-"):
         print(f"Using OpenAI API with {model}.")
         client = openai.OpenAI(

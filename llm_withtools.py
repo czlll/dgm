@@ -13,6 +13,69 @@ from tools import load_all_tools
 CLAUDE_MODEL = 'bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0'
 OPENAI_MODEL = 'o3-mini-2025-01-31'
 
+def summarize_history(msg_history, max_messages_to_keep=5, logging=print):
+    """
+    Summarize older messages in conversation history to reduce token count.
+    
+    Args:
+        msg_history (list): List of message dictionaries
+        max_messages_to_keep (int): Number of recent messages to keep unchanged
+        logging (function): Logging function
+    
+    Returns:
+        list: Summarized message history
+    """
+    if len(msg_history) <= max_messages_to_keep:
+        return msg_history
+    
+    # Keep the most recent messages unchanged
+    recent_messages = msg_history[-max_messages_to_keep:]
+    older_messages = msg_history[:-max_messages_to_keep]
+    
+    # Create a summary of older messages
+    summary_parts = []
+    for i, msg in enumerate(older_messages):
+        role = msg.get('role', 'unknown')
+        content = msg.get('content', '')
+        
+        # Extract text content from different message formats
+        if isinstance(content, list):
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get('type') == 'text':
+                        text_parts.append(block.get('text', ''))
+                    elif block.get('type') == 'tool_result':
+                        text_parts.append(f"Tool Result: {block.get('content', '')}")
+                else:
+                    text_parts.append(str(block))
+            content_text = ' '.join(text_parts)
+        else:
+            content_text = str(content)
+        
+        # Truncate very long content
+        if len(content_text) > 200:
+            content_text = content_text[:200] + "..."
+        
+        summary_parts.append(f"Message {i+1} ({role}): {content_text}")
+    
+    # Create a single summary message
+    summary_text = f"[CONVERSATION SUMMARY - {len(older_messages)} older messages]\n" + "\n".join(summary_parts)
+    
+    summary_message = {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": summary_text
+            }
+        ]
+    }
+    
+    logging(f"Summarized {len(older_messages)} older messages to reduce token count")
+    
+    return [summary_message] + recent_messages
+
 def process_tool_call(tools_dict, tool_name, tool_input):
     try:
         if tool_name in tools_dict:
@@ -54,13 +117,28 @@ def get_response_withtools(
             raise ValueError(f"Unsupported model: {model}")
         return response
     except Exception as e:
-        logging(f"Error in get_response_withtools: {str(e)}")
+        error_str = str(e)
+        logging(f"Error in get_response_withtools: {error_str}")
+        
+        # Handle context window limit
+        if 'Input is too long for requested model' in error_str or 'context_length_exceeded' in error_str:
+            if max_retry > 0:
+                logging("Context limit exceeded, attempting to summarize conversation history...")
+                # Summarize the messages to reduce token count
+                summarized_messages = summarize_history(messages, max_messages_to_keep=3, logging=logging)
+                return get_response_withtools(client, model, summarized_messages, tools, tool_choice, logging, max_retry - 1)
+            else:
+                logging("Context limit exceeded and no retries left")
+                raise ValueError("Input too long for model and summarization failed")
+        
+        # Handle AWS credentials issues
+        if 'could not resolve credentials' in error_str or 'credentials' in error_str.lower():
+            logging("AWS credentials issue detected. Consider using OpenAI models instead.")
+            logging("See AWS_CREDENTIALS_SETUP.md for configuration instructions.")
+            raise ValueError(f"AWS credentials error: {error_str}. Try using --model o3-mini-2025-01-31 instead.")
+        
         if max_retry > 0:
             return get_response_withtools(client, model, messages, tools, tool_choice, logging, max_retry - 1)
-
-        # Hitting the context window limit
-        if 'Input is too long for requested model' in str(e):
-            pass
 
         raise  # Re-raise the exception after logging
 
